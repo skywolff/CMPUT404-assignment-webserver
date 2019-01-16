@@ -34,14 +34,12 @@ from http import HTTPStatus
 class MyWebServer(socketserver.BaseRequestHandler):
 
     def setup(self):
-        self.command = ""
-        self.uri = ""
+        self.requestMethod = ""
+        self.requestURI = ""
         self.httpVersion = ""
+        self.path = ""
         self.status = HTTPStatus.OK
-        self.responseHeader = ""
         self.responseHeaderParts = []
-        self.responseBody = ""
-
 
     def handle(self):
         # parse request
@@ -50,10 +48,10 @@ class MyWebServer(socketserver.BaseRequestHandler):
         print("------------------------------------")
         requestHeaders = self.data.split('\r\n')
         requestline = requestHeaders [0]
-        self.command, self.uri, self.httpVersion = requestline.split()
+        self.requestMethod, self.requestURI, self.httpVersion = requestline.split()
 
-        # following block was partially taken from python http.server module
-        mname = 'do_' + self.command
+        # following block was partially taken from python3 http.server module
+        mname = 'do_' + self.requestMethod
         if not hasattr(self, mname):
             # method not handled
             self.status = HTTPStatus.METHOD_NOT_ALLOWED
@@ -65,59 +63,45 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
 
     def do_GET(self):
-        path = os.getcwd() + self.uri   # abs path on fs
-        if os.path.isdir(path):         # it's a directory => look for index.html
-            # print("path is a dir, join index.html")
-            index = os.path.join(path, 'index.html')
+        self.path = os.getcwd() + self.requestURI   # abs path on fs
+        print(self.path)
+        if os.path.isdir(self.path):         # it's a directory => look for index.html
+            index = os.path.join(self.path, 'index.html')
             if os.path.exists(index):
-                path = index
-        if not os.path.exists(path):
+                self.path = index
+        if not os.path.exists(self.path):
             self.status = HTTPStatus.NOT_FOUND
-            send_error()
+            self.send_header()
             return
-        contentType = mimetypes.guess_type(path)[0]
+        contentType = mimetypes.guess_type(self.path)[0]
         if contentType:
-            # print("content-type : " + str(contentType))
             self.responseHeaderParts.append("Content-type: " + contentType)
-
-        self.assemble_header()
-        with open(path, "r") as f:
-            self.responseBody = f.read()
-
-        response = "\r\n".join((self.responseHeader, self.responseBody))
-        self.request.sendall(bytearray(response,'utf-8'))
+        self.send_header()
+        self.send_body()
 
 
     def do_HEAD(self):
-        self.assemble_header()
-        response = self.responseHeader + "\r\n"
-        self.request.sendall(bytearray(response,'utf-8'))
+        self.send_header()
 
-    def assemble_header(self):
+    def send_header(self):
+        responseHeader = ""
         statusLine = " ".join(
             (self.httpVersion, str(self.status.value), self.status.phrase)
         )
         if len(self.responseHeaderParts) != 0:
             self.responseHeaderParts.insert(0, statusLine)
-            self.responseHeader = "\r\n".join(self.responseHeaderParts) + "\r\n"
+            responseHeader = "\r\n".join(self.responseHeaderParts) + "\r\n"
         else:
-            self.responseHeader = statusLine + "\r\n"
+            responseHeader = statusLine + "\r\n"
+        responseHeader += "\r\n"
+        self.request.sendall(bytearray(responseHeader, 'utf-8'))
 
-    # def assemble_response(self):
-        # statusLine = " ".join(
-            # (self.httpVersion, str(self.status.value), self.status.phrase)
-        # )
-        # self.responseHeaderParts.insert(0, statusLine)
-        # self.response = "\r\n".join(self.responseHeaderParts)
-        # response += self.responseBody
-        # self.request.sendall(bytearray(response,'utf-8'))
+    def send_body(self):
+        responseBody = ""
+        with open(self.path, "r") as f:
+            self.responseBody = f.read()
+        self.request.sendall(bytearray(responseBody, 'utf-8'))
 
-
-    # def assemble_error(self)
-        # response = " ".join(
-            # (self.httpVersion, str(self.status.value), self.status.phrase)
-        # ) + "\r\n"
-        # self.request.sendall(bytearray(response,'utf-8'))
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080

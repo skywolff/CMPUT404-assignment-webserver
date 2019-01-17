@@ -34,24 +34,26 @@ from http import HTTPStatus
 class MyWebServer(socketserver.BaseRequestHandler):
 
     def setup(self):
-        self.requestMethod = ""
-        self.requestURI = ""
-        self.httpVersion = ""
+        self.command = ""
         self.path = ""
+        self.version = "HTTP/1.1"
         self.status = HTTPStatus.OK
         self.responseHeaderParts = []
 
     def handle(self):
+        print("------------------------------------")
+        print("------------------------------------")
         # parse request
         self.data = self.request.recv(1024).strip().decode('utf-8')
         print("Got a request of: \n%s\n" % self.data)
-        print("------------------------------------")
         requestHeaders = self.data.split('\r\n')
-        requestline = requestHeaders [0]
-        self.requestMethod, self.requestURI, self.httpVersion = requestline.split()
+        parse_request()
+
+        requestline = requestHeaders[0]
+        self.command, self.path, self.version = requestline.strip().split()
 
         # following block was partially taken from python3 http.server module
-        mname = 'do_' + self.requestMethod
+        mname = 'do_' + self.command
         if not hasattr(self, mname):
             # method not handled
             self.status = HTTPStatus.METHOD_NOT_ALLOWED
@@ -62,22 +64,26 @@ class MyWebServer(socketserver.BaseRequestHandler):
             method()
 
 
+    def parse_request(self):
+
+
     def do_GET(self):
-        self.path = os.getcwd() + self.requestURI   # abs path on fs
-        print(self.path)
-        if os.path.isdir(self.path):         # it's a directory => look for index.html
-            index = os.path.join(self.path, 'index.html')
+        print("do_GET")
+        path = os.getcwd() + self.path   # abs path on fs
+        print(path)
+        if os.path.isdir(path):         # it's a directory => look for index.html
+            index = os.path.join(path, 'index.html')
             if os.path.exists(index):
-                self.path = index
-        if not os.path.exists(self.path):
+                path = index
+        if not os.path.exists(path):
             self.status = HTTPStatus.NOT_FOUND
             self.send_header()
             return
-        contentType = mimetypes.guess_type(self.path)[0]
+        contentType = mimetypes.guess_type(path)[0]
         if contentType:
             self.responseHeaderParts.append("Content-type: " + contentType)
         self.send_header()
-        self.send_body()
+        self.send_body(path)
 
 
     def do_HEAD(self):
@@ -86,7 +92,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def send_header(self):
         responseHeader = ""
         statusLine = " ".join(
-            (self.httpVersion, str(self.status.value), self.status.phrase)
+            (self.version, str(self.status.value), self.status.phrase)
         )
         if len(self.responseHeaderParts) != 0:
             self.responseHeaderParts.insert(0, statusLine)
@@ -96,9 +102,9 @@ class MyWebServer(socketserver.BaseRequestHandler):
         responseHeader += "\r\n"
         self.request.sendall(bytearray(responseHeader, 'utf-8'))
 
-    def send_body(self):
+    def send_body(self, path):
         responseBody = ""
-        with open(self.path, "r") as f:
+        with open(path, "r") as f:
             self.responseBody = f.read()
         self.request.sendall(bytearray(responseBody, 'utf-8'))
 

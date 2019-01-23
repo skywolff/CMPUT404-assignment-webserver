@@ -2,6 +2,7 @@
 #  coding: utf-8
 import socketserver
 import os
+import posixpath
 import urllib.parse
 import mimetypes
 from http import HTTPStatus
@@ -34,44 +35,51 @@ from http import HTTPStatus
 class MyWebServer(socketserver.BaseRequestHandler):
 
     def setup(self):
-        self.command = ""
-        self.path = ""
+        self.directory = "www"
+        self.method = ""
+        self.requestURI = ""
         self.version = "HTTP/1.1"
         self.status = HTTPStatus.OK
         self.responseHeaderParts = []
 
+        # only serve files from directory wwww
+        if self.directory not in os.listdir():
+            print("%s is not in current directory" % self.directory)
+            return
+
     def handle(self):
-        print("------------------------------------")
-        print("------------------------------------")
+        # print("------------------------------------")
+        # print("------------------------------------")
         # parse request
         self.data = self.request.recv(1024).strip().decode('utf-8')
-        print("Got a request of: \n%s\n" % self.data)
+        # print("Got a request of: \n%s\n" % self.data)
         requestHeaders = self.data.split('\r\n')
-        parse_request()
-
-        requestline = requestHeaders[0]
-        self.command, self.path, self.version = requestline.strip().split()
+        self.method, self.requestURI, self.version = requestHeaders[0].strip().split()
 
         # following block was partially taken from python3 http.server module
-        mname = 'do_' + self.command
+        mname = 'do_' + self.method
         if not hasattr(self, mname):
             # method not handled
             self.status = HTTPStatus.METHOD_NOT_ALLOWED
-            self.send_error()
+            self.send_header()
             return
         else:
             method = getattr(self, mname)
             method()
 
 
-    def parse_request(self):
-
-
     def do_GET(self):
-        print("do_GET")
-        path = os.getcwd() + self.path   # abs path on fs
-        print(path)
-        if os.path.isdir(path):         # it's a directory => look for index.html
+        path = self.directory + posixpath.normpath(self.requestURI)
+        # print("requestURI:", self.requestURI)
+        # print("path:", path)
+        if os.path.isdir(path):
+            if not self.requestURI.endswith('/'):
+                self.status = HTTPStatus.MOVED_PERMANENTLY
+                self.responseHeaderParts.append("Location: " + self.requestURI + '/')
+                self.send_header()
+                return
+
+            # it's a directory => look for index.html
             index = os.path.join(path, 'index.html')
             if os.path.exists(index):
                 path = index
@@ -100,18 +108,20 @@ class MyWebServer(socketserver.BaseRequestHandler):
         else:
             responseHeader = statusLine + "\r\n"
         responseHeader += "\r\n"
+        # print("response headers:")
+        # print(responseHeader)
         self.request.sendall(bytearray(responseHeader, 'utf-8'))
 
     def send_body(self, path):
         responseBody = ""
         with open(path, "r") as f:
-            self.responseBody = f.read()
+            responseBody = f.read()
         self.request.sendall(bytearray(responseBody, 'utf-8'))
 
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
-    os.chdir("./www")               # only serve docs from www dir
+
 
     socketserver.TCPServer.allow_reuse_address = True
     # Create the server, binding to localhost on port 8080

@@ -4,6 +4,8 @@ import socketserver
 import os
 import posixpath
 import mimetypes
+import time
+from email import utils
 from http import HTTPStatus
 
 # Copyright 2019 Alex Li
@@ -51,9 +53,14 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
     def handle(self):
         self.data = self.request.recv(1024).strip().decode('utf-8')
-        requestLines = self.data.split('\n')
-        requestLines = [line.strip().rstrip('\r') for line in requestLines]
-        self.method, self.requestURI, self.version = requestLines[0].split()
+        try:
+            requestLines = self.data.split('\n')
+            requestLines = [line.strip().rstrip('\r') for line in requestLines]
+            self.method, self.requestURI, self.version = requestLines[0].split()
+        except Exception:
+            self.status = HTTPStatus.BAD_REQUEST
+            self.send_header()
+            return
 
         # following block refrenced python3 standard library http.server module
         mname = 'do_' + self.method
@@ -86,6 +93,9 @@ class MyWebServer(socketserver.BaseRequestHandler):
             self.send_header()
             return
 
+        date = utils.formatdate(time.time(), usegmt=True)
+        if date:
+            self.responseHeaderParts.append("Date: " + str(date))
         contentType = mimetypes.guess_type(path)[0]
         if contentType:
             self.responseHeaderParts.append("Content-type: " + contentType)

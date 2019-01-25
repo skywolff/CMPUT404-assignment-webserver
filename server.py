@@ -51,8 +51,9 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
     def handle(self):
         self.data = self.request.recv(1024).strip().decode('utf-8')
-        requestHeaders = self.data.split('\r\n')
-        self.method, self.requestURI, self.version = requestHeaders[0].strip().split()
+        requestLines = self.data.split('\n')
+        requestLines = [line.strip().rstrip('\r') for line in requestLines]
+        self.method, self.requestURI, self.version = requestLines[0].split()
 
         # following block refrenced python3 standard library http.server module
         mname = 'do_' + self.method

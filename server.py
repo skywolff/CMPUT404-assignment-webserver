@@ -3,10 +3,11 @@
 import socketserver
 import os
 import posixpath
-import urllib.parse
 import mimetypes
 from http import HTTPStatus
 
+# Copyright 2019 Alex Li
+#
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,16 +48,13 @@ class MyWebServer(socketserver.BaseRequestHandler):
             print("%s is not in current directory" % self.directory)
             return
 
+
     def handle(self):
-        # print("------------------------------------")
-        # print("------------------------------------")
-        # parse request
         self.data = self.request.recv(1024).strip().decode('utf-8')
-        # print("Got a request of: \n%s\n" % self.data)
         requestHeaders = self.data.split('\r\n')
         self.method, self.requestURI, self.version = requestHeaders[0].strip().split()
 
-        # following block was partially taken from python3 http.server module
+        # following block refrenced python3 standard library http.server module
         mname = 'do_' + self.method
         if not hasattr(self, mname):
             # method not handled
@@ -70,8 +68,6 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
     def do_GET(self):
         path = self.directory + posixpath.normpath(self.requestURI)
-        # print("requestURI:", self.requestURI)
-        # print("path:", path)
         if os.path.isdir(path):
             if not self.requestURI.endswith('/'):
                 self.status = HTTPStatus.MOVED_PERMANENTLY
@@ -83,10 +79,12 @@ class MyWebServer(socketserver.BaseRequestHandler):
             index = os.path.join(path, 'index.html')
             if os.path.exists(index):
                 path = index
+
         if not os.path.exists(path):
             self.status = HTTPStatus.NOT_FOUND
             self.send_header()
             return
+
         contentType = mimetypes.guess_type(path)[0]
         if contentType:
             self.responseHeaderParts.append("Content-type: " + contentType)
@@ -96,6 +94,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
     def do_HEAD(self):
         self.send_header()
+
 
     def send_header(self):
         responseHeader = ""
@@ -108,9 +107,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
         else:
             responseHeader = statusLine + "\r\n"
         responseHeader += "\r\n"
-        # print("response headers:")
-        # print(responseHeader)
         self.request.sendall(bytearray(responseHeader, 'utf-8'))
+
 
     def send_body(self, path):
         responseBody = ""
@@ -121,7 +119,6 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
-
 
     socketserver.TCPServer.allow_reuse_address = True
     # Create the server, binding to localhost on port 8080
